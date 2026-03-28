@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Health Surveillance System</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background: #0f172a; color: white; }
+    #header {
+      background: #1e293b;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #334155;
+    }
+    #header h1 { font-size: 20px; color: #38bdf8; }
+    #header p { font-size: 13px; color: #94a3b8; }
+    #stats {
+      display: flex;
+      gap: 12px;
+      padding: 12px 24px;
+      background: #1e293b;
+    }
+    .stat-box {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    .critical { background: #7f1d1d; color: #fca5a5; }
+    .high     { background: #78350f; color: #fcd34d; }
+    .medium   { background: #713f12; color: #fde68a; }
+    .low      { background: #14532d; color: #86efac; }
+    #container {
+      display: flex;
+      height: calc(100vh - 110px);
+    }
+    #map { flex: 1; }
+    #sidebar {
+      width: 320px;
+      background: #1e293b;
+      padding: 20px;
+      overflow-y: auto;
+      border-left: 1px solid #334155;
+    }
+    #sidebar h2 { font-size: 16px; color: #38bdf8; margin-bottom: 16px; }
+    .disease-card {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-left: 4px solid #334155;
+    }
+    .disease-card.Critical { border-left-color: #ef4444; }
+    .disease-card.High     { border-left-color: #f97316; }
+    .disease-card.Medium   { border-left-color: #eab308; }
+    .disease-card.Low      { border-left-color: #22c55e; }
+    .disease-name { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+    .disease-info { font-size: 12px; color: #94a3b8; }
+    .risk-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: bold;
+      margin-top: 6px;
+    }
+    .badge-Critical { background: #7f1d1d; color: #fca5a5; }
+    .badge-High     { background: #78350f; color: #fcd34d; }
+    .badge-Medium   { background: #713f12; color: #fde68a; }
+    .badge-Low      { background: #14532d; color: #86efac; }
+    #welcome {
+      text-align: center;
+      margin-top: 60px;
+      color: #475569;
+    }
+    #welcome h3 { font-size: 16px; margin-bottom: 8px; }
+    #welcome p { font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <h1>Predictive Public Health Surveillance System</h1>
+    <p>Real-time disease outbreak monitoring across India</p>
+  </div>
+</div>
+
+<div id="stats">
+  <div class="stat-box critical" id="count-critical">Critical: 0</div>
+  <div class="stat-box high"     id="count-high">High: 0</div>
+  <div class="stat-box medium"   id="count-medium">Medium: 0</div>
+  <div class="stat-box low"      id="count-low">Low: 0</div>
+</div>
+
+<div id="container">
+  <div id="map"></div>
+  <div id="sidebar">
+    <div id="welcome">
+      <h3>Click any city on the map</h3>
+      <p>to see disease risk details</p>
+    </div>
+    <div id="district-info" style="display:none">
+      <h2 id="district-name"></h2>
+      <div id="disease-cards"></div>
+    </div>
+    <div id="advisory-box" style="background:#0f172a;border-radius:8px;padding:14px;margin-top:12px;border-left:3px solid #38bdf8;min-height:60px"></div>
+```
+
+So it should look like this:
+```
+107  <div id="district-info" style="display:none">
+108    <h2 id="district-name"></h2>
+109    <div id="disease-cards"></div>
+110  </div>
+111  <div id="advisory-box" style="background:#0f172a;border-radius:8px;padding:14px;margin-top:12px;border-left:3px solid #38bdf8;min-height:60px"></div>
+112  </div>
+113 </div>
+  </div>
+</div>
+
+<script>
+  // City coordinates for India
+  const cityCoords = {
+    "Mumbai":    [19.076, 72.877],
+    "Delhi":     [28.613, 77.209],
+    "Bengaluru": [12.972, 77.594],
+    "Chennai":   [13.083, 80.270],
+    "Kolkata":   [22.572, 88.363],
+    "Pune":      [18.520, 73.856],
+    "Hyderabad": [17.385, 78.487],
+    "Jaipur":    [26.912, 75.787],
+    "Lucknow":   [26.847, 80.947],
+    "Bhopal":    [23.259, 77.413]
+  };
+
+  const riskColors = {
+    "Critical": "#ef4444",
+    "High":     "#f97316",
+    "Medium":   "#eab308",
+    "Low":      "#22c55e"
+  };
+
+  // Start the map centered on India
+  const map = L.map("map").setView([20.5937, 78.9629], 5);
+
+  // Add the map tiles
+ L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: "OpenStreetMap"
+  }).addTo(map);
+
+  // Fetch data from Flask
+  fetch("http://127.0.0.1:5000/api/districts")
+    .then(res => res.json())
+    .then(data => {
+      // Count risk levels
+      let counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+
+      // Group data by district
+      const byDistrict = {};
+      data.forEach(item => {
+        if (!byDistrict[item.district]) byDistrict[item.district] = [];
+        byDistrict[item.district].push(item);
+      });
+
+      // Find worst risk for each district
+      const riskOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+
+      Object.keys(byDistrict).forEach(district => {
+        const diseases = byDistrict[district];
+        let worstRisk = "Low";
+        diseases.forEach(d => {
+          if (riskOrder[d.risk] > riskOrder[worstRisk]) {
+            worstRisk = d.risk;
+          }
+        });
+
+        counts[worstRisk]++;
+
+        // Add circle marker on map
+        const coords = cityCoords[district];
+        if (coords) {
+          const marker = L.circleMarker(coords, {
+            radius: 18,
+            fillColor: riskColors[worstRisk],
+            color: "white",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.85
+          }).addTo(map);
+
+          // Add city name label
+          const label = L.divIcon({
+            html: `<div style="color:white;font-size:11px;font-weight:bold;
+                   text-shadow:1px 1px 2px black;white-space:nowrap;
+                   margin-top:22px;margin-left:-20px">${district}</div>`,
+            className: ""
+          });
+          L.marker(coords, { icon: label }).addTo(map);
+
+          // Click to show details
+          marker.on("click", () => showDistrict(district, diseases));
+        }
+      });
+
+      // Update stat boxes
+      document.getElementById("count-critical").textContent = "Critical: " + counts.Critical;
+      document.getElementById("count-high").textContent     = "High: "     + counts.High;
+      document.getElementById("count-medium").textContent   = "Medium: "   + counts.Medium;
+      document.getElementById("count-low").textContent      = "Low: "      + counts.Low;
+    });
+function getAdvisory(name, diseases) {
+  const advisory = document.getElementById("advisory-box");
+  advisory.innerHTML = "<p style='color:#94a3b8;font-size:13px'>Generating AI advisory...</p>";
+  
+  const critical = diseases.filter(d => d.risk === "Critical");
+  const high = diseases.filter(d => d.risk === "High");
+  
+  let text = "";
+  if (critical.length > 0) {
+    const names = critical.map(d => d.disease).join(", ");
+    text = `⚠️ CRITICAL ALERT — ${name}: ${names} cases are at ${critical[0].latest_cases} this week vs average of ${critical[0].average_cases}. Immediate action required: Deploy rapid response teams, activate emergency health camps, increase hospital bed capacity by 40%, and issue public health advisory. Contact district CMO immediately.`;
+  } else if (high.length > 0) {
+    const names = high.map(d => d.disease).join(", ");
+    text = `🔶 HIGH RISK — ${name}: ${names} showing unusual spike at ${high[0].latest_cases} cases. Recommended: Deploy fogging teams, set up fever clinics, alert PHCs, and monitor closely for next 2 weeks.`;
+  } else {
+    text = `✅ ${name} is currently stable. Continue routine surveillance and preventive measures.`;
+  }
+  
+  advisory.innerHTML = `<p style='font-size:13px;line-height:1.8;color:#e2e8f0'>${text}</p>`;
+}
+  function showDistrict(name, diseases) {
+    document.getElementById("welcome").style.display = "none";
+    document.getElementById("district-info").style.display = "block";
+    document.getElementById("district-name").textContent = name + " — Disease Risk";
+
+    const container = document.getElementById("disease-cards");
+    container.innerHTML = "";
+
+    diseases.forEach(d => {
+      container.innerHTML += `
+        <div class="disease-card ${d.risk}">
+          <div class="disease-name">${d.disease}</div>
+          <div class="disease-info">Latest cases: <b>${d.latest_cases}</b></div>
+          <div class="disease-info">Weekly average: <b>${d.average_cases}</b></div>
+          <span class="risk-badge badge-${d.risk}">${d.risk} Risk</span>
+        </div>`;
+    });getAdvisory(name, diseases);
+  }
+</script>
+</body>
+</html>
